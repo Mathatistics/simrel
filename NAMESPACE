@@ -2,4 +2,5 @@
 
 export(MultiSimrel)
 export(Simrel)
+export(UniSimrel)
 import(R6)

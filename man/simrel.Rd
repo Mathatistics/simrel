@@ -3,11 +3,14 @@
 \docType{data}
 \name{Simrel}
 \alias{Simrel}
+\alias{UniSimrel}
 \alias{MultiSimrel}
 \title{Simulation of Linear Model Data}
 \format{An object of class \code{R6ClassGenerator} of length 24.}
 \usage{
 Simrel
+
+UniSimrel
 
 MultiSimrel
 }
@@ -57,14 +60,42 @@ MultiSimrel
 \item{sim.obj}{(Optional) Previously fitted simulation object, the parameters will be taken from the object}
 
 \item{lambda.min}{(Optional) Minimum value that eigenvalues can be}
+
+\item{n}{Number of training samples}
+
+\item{p}{Number of predictor variables}
+
+\item{q}{Number of relevant predictor variables}
+
+\item{relpos}{Position of relevant predictor components}
+
+\item{ypos}{Position of response components while rotation (see details)}
+
+\item{gamma}{Decay factor of eigenvalues of predictor variables}
+
+\item{R2}{Coefficient of determination}
+
+\item{ntest}{(Optional) Number of test samples}
+
+\item{muX}{(Optional) Mean vector of predictor variables}
+
+\item{muY}{(Optional) Mean vector of response variables}
+
+\item{sim.obj}{(Optional) Previously fitted simulation object, the parameters will be taken from the object}
+
+\item{lambda.min}{(Optional) Minimum value that eigenvalues can be}
 }
 \value{
+simrel object (A list)
+
 simrel object (A list)
 
 simrel object (A list)
 }
 \description{
 Simulates univariate, bivariate and multivariate linear model data where users can specify few parameters for simulating data with wide range of properties.
+
+Simulates univariate linear model data where users can specify few parameters for simulating data with wide range of properties.
 
 Simulates multivariate linear model data where users can specify few parameters for simulating data with wide range of properties.
 }
