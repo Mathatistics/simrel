@@ -1,3 +1,4 @@
+## ---- Class: Simrel ----
 #' @title Simulation of Linear Model Data
 #' @description Simulates univariate, bivariate and multivariate linear model data where users can specify few parameters for simulating data with wide range of properties.
 #' @import R6
@@ -15,46 +16,46 @@
 #' @return simrel object (A list)
 #' @rdname simrel
 #' @export
-
 Simrel <- R6::R6Class(
   "Simrel",
   private = list(
     ..parameters = list(
-      n        = 100,
-      p        = 10,
-      m        = 1,
-      q        = 5,
-      relpos   = c(1, 2, 4),
-      R2       = 0.8,
-      gamma    = 0.7,
-      eta      = 0,
-      rho      = NULL,
-      ypos     = NULL,
-      type     = "univariate"
+      n          = 100,
+      p          = 20,
+      q          = 10,
+      m          = 1,
+      relpos     = c(1, 2, 3),
+      ypos       = NULL,
+      gamma      = 0.8,
+      eta        = 0.3,
+      lambda.min = 1e-5,
+      rho        = NULL,
+      R2         = 0.9,
+      ntest      = NULL,
+      muX        = NULL,
+      muY        = NULL,
+      type       = "univariate"
     ),
     ..properties = list(
-      relpred = NULL,
-      irrelpred = NULL,
-      lambda = NULL,
-      sigma_z = NULL,
+      relpred    = NULL,
+      eigen_x    = NULL,
+      eigen_w    = NULL,
+      sigma_z    = NULL,
       sigma_zinv = NULL,
-      sigma_y = NULL,
-      sigma_w = NULL,
-      sigma_zy = NULL,
-      sigma_zw = NULL,
-      sigma = NULL,
+      sigma_y    = NULL,
+      sigma_w    = NULL,
+      sigma_zy   = NULL,
+      sigma_zw   = NULL,
+      sigma      = NULL,
       rotation_x = NULL,
       rotation_y = NULL,
-      beta_z = NULL,
-      beta = NULL,
-      Rsq = NULL,
-      minerror = NULL
+      beta_z     = NULL,
+      beta       = NULL,
+      Rsq_y      = NULL,
+      Rsq_w      = NULL,
+      minerror   = NULL
     ),
-    ..data = list(
-      x = NULL,
-      y = NULL
-    ),
-    ..get_cov = function(pos, Rsq, eta = 1, p = p, lambda = lambda){
+    ..get_cov = function(pos, Rsq, eta, p, lambda){
       out      <- vector("numeric", p)
       alph     <- runif(length(pos), -1, 1)
       out[pos] <- sign(alph) * sqrt(Rsq * abs(alph) / sum(abs(alph)) * lambda[pos] * eta)
@@ -66,83 +67,107 @@ Simrel <- R6::R6Class(
       Qmat <- scale(Qmat, scale = FALSE)
       qr.Q(qr(Qmat))
     },
-    ..is_pd = function(){
-      sigma <- self$get_properties("sigma")
-      all(eigen(sigma)$values > 0)
-    }
-  ),
-  active = list(
-    parameters = function() private$..parameters,
-    lambda = function() {
-      gamma <- self$get_parameters("gamma")
-      p <- self$get_parameters("p")
-      return((exp(-gamma*(1:p)))/(exp(-gamma)))
+    ..is_pd = function(sigma_mat){
+      all(eigen(sigma_mat)$values > 0)
     },
-    eta = function() {
-      eta <- self$get_parameters("eta")
-      m <- self$get_parameters("m")
-      return((exp(-eta * (1:m)))/(exp(-eta)))
+    ..get_eigen = function(gamma, p) {
+      return((exp(-gamma * (1:p))) / (exp(-gamma)))
     },
-    sigma_z = function() diag(self$get_properties("lambda")),
-    sigma_zinv = function() {
-      diag(1/self$get_properties("lambda"))
-    },
-    sigma_y = function() return(1),
-    predpos = function() {
-      type <- private$..parameters$type
-      p <- private$..parameters$p
-      q <- private$..parameters$q
-      relpos <- private$..parameters$relpos
-      relpos <- if (!is.list(relpos)) list(relpos) else relpos
-      irrelpos <- setdiff(seq_len(p), Reduce(union, relpos))
-      out <- lapply(seq_along(relpos), function(i){
-        pos      <- relpos[[i]]
+    ..predpos = function(p, q, relpos) {
+      relpos_list <- if (!is.list(relpos)) list(relpos) else relpos
+      irrelpos <- setdiff(seq_len(p), Reduce(union, relpos_list))
+      out <- lapply(seq_along(relpos_list), function(i){
+        pos      <- relpos_list[[i]]
         ret      <- c(pos, sample(irrelpos, q[i] - length(pos)))
         irrelpos <<- setdiff(irrelpos, ret)
         return(ret)
       })
-      out <- if (type == "univariate") unlist(out) else out
+      if(!is.list(relpos)) out <- unlist(out)
       return(out)
     },
-    get_data = function(){
-      sigma <- self$get_properties("sigma")
-      n <- self$get_parameters("n")
-      p <- self$get_parameters("p")
-      m <- self$get_parameters("m")
-      type <- self$get_parameters("type")
-      rotation_x <- self$get_properties("rotation_x")
-      rotation_y <- self$get_properties("rotation_y")
+    ..get_data = function(n, p, sigma, rotation_x, m = 1, rotation_y = NULL){
       sigma_rot <- chol(sigma)
       train_cal <- matrix(rnorm(n * (p + m), 0, 1), nrow = n) %*% sigma_rot
       Z <- train_cal[, (m + 1):(m + p), drop = F]
       X <- Z %*% t(rotation_x)
       W <- train_cal[, 1:m, drop = F]
-      Y <- if (!type == "univariate") W %*% t(rotation_y) else W
+      Y <- if (all(!is.null(m), m > 1)) W %*% t(rotation_y) else W
       list(y = unname(Y), x = X)
+    }
+  ),
+  active = list(
+    list_properties = function(){
+      properties <- private$..properties
+      properties <- properties[!sapply(properties, is.null)]
+      str(properties)
+      cat("\nProperties of Simulated Data:\n")
+      names(properties)
+    },
+    list_parameters = function(){
+      parameters <- private$..parameters
+      parameters <- parameters[!sapply(parameters, is.null)]
+      str(parameters)
+      cat("\nInput Parameters for Simulation:\n")
+      names(parameters)
     }
   ),
   public = list(
     initialize = function(...) {
+      self$set_parameters(...)
+      type <- self$get_parameters("type")
+      ## Adding Properties to Simrel Object
+      self$set_properties("relpred", expression({
+        p      <- self$get_parameters("p")
+        q      <- self$get_parameters("q")
+        relpos <- self$get_parameters("relpos")
+        out <- private$..predpos(p, q, relpos)
+        if (!is.list(relpos)) out <- unlist(out)
+        return(out)
+      }))
+      self$set_properties("eigen_x", expression({
+        p     <- self$get_parameters("p")
+        gamma <- self$get_parameters("gamma")
+        private$..get_eigen(gamma, p)
+      }))
+      self$set_properties("eigen_w", expression({
+        l <- length(self$get_parameters("ypos"))
+        if (l == 0) return(1)
+        eta <- self$get_parameters("eta")
+        private$..get_eigen(eta, l)
+      }))
+      self$set_properties("sigma_z", expression({
+        diag(self$get_properties("eigen_x"))
+      }))
+      self$set_properties("sigma_zinv", expression({
+        diag(1 / self$get_properties("eigen_x"))
+      }))
+    },
+    get_parameters = function(key) private$..parameters[[key]],
+    set_parameters = function(...) {
       params <- list(...)
       for (key in names(params)) {
         private$..parameters[[key]] <- params[[key]]
       }
-      
-      ## Adding Properties to Simrel Object
-      self$set_properties("predpos", self$predpos)
-      self$set_properties("lambda", self$lambda)
-      self$set_properties("sigma_z", self$sigma_z)
-      self$set_properties("sigma_zinv", self$sigma_zinv)
-      self$set_properties("sigma_y", self$sigma_y)
     },
-    get_parameters = function(key) private$..parameters[[key]],
-    set_properties = function(key, value) {
-      private$..properties[[key]] <- value
+    get_properties = function(key) private$..properties[[key]],
+    set_properties = function(key, expression) {
+      private$..properties[[key]] <- eval(expression)
     },
-    get_properties = function(key) private$..properties[[key]]
+    get_data = function(){
+      n <- self$get_parameters("n")
+      p <- self$get_parameters("p")
+      m <- self$get_parameters("m")
+      sigma <- self$get_properties("sigma")
+      rotation_x <- self$get_properties("rotation_x")
+      rotation_y <- self$get_properties("rotation_y")
+      data <- private$..get_data(n, p, sigma, rotation_x, m, rotation_y)
+      data.frame(y = I(data$y), x = I(data$x))
+    }
   )
 )
 
+
+## ---- Class: UniSimrel ----
 #' @title Uni-Response Simulation of Linear Model Data
 #' @description Simulates univariate linear model data where users can specify few parameters for simulating data with wide range of properties.
 #' @import R6
@@ -161,82 +186,63 @@ Simrel <- R6::R6Class(
 #' @return simrel object (A list)
 #' @rdname simrel
 #' @export
-
 UniSimrel <- R6::R6Class(
   "UniSimrel",
   inherit = Simrel,
-  active = list(
-    sigma_zy = function() {
-      relpos <- self$get_parameters("relpos")
-      R2 <- self$get_parameters("R2")
-      p <- self$get_parameters("p")
-      lambda <- self$get_properties("lambda")
-      private$..get_cov(pos = relpos, Rsq = R2, p = p, lambda = lambda)
-    },
-    sigma = function() {
-      sigma_zy <- self$get_properties("sigma_zy")
-      sigma_y <- self$get_properties("sigma_y")
-      sigma_z <- self$get_properties("sigma_z")
-      rbind(c(sigma_y, t(sigma_zy)), cbind(sigma_zy,  sigma_z))
-    },
-    irrelpred = function() {
-      relpred <- self$get_properties("relpred")
-      p <- self$get_parameters("p")
-      irrelpred <- setdiff(1:p, relpred)
-    },
-    rotation_x = function() {
-      irrelpred <- self$get_properties("irrelpred")
-      relpred <- self$get_properties("relpred")
-      p <- self$get_parameters("p")
-      out <- diag(p)
-      out[irrelpred, irrelpred] <- private$..get_rotate(irrelpred)
-      out[relpred, relpred] <- private$..get_rotate(relpred)
-      return(out)
-    },
-    beta_z = function() {
-      sigma_zinv <- self$get_properties("sigma_zinv")
-      sigma_zy <- self$get_properties("sigma_zy")
-      return(sigma_zinv %*% sigma_zy)
-    },
-    beta = function() {
-      rotation_x <- self$get_properties("rotation_x")
-      beta_z <- self$get_properties("beta_z")
-      return(rotation_x %*% beta_z)
-    },
-    Rsq = function() {
-      beta_z <- self$get_properties("beta_z")
-      sigma_zy <- self$get_properties("sigma_zy")
-      t(beta_z) %*% sigma_zy
-    },
-    minerror = function() {
-      sigma_y <- self$get_properties("sigma_y")
-      Rsq <- self$get_properties("Rsq")
-      sigma_y - Rsq
-    }
-  ),
   public = list(
     initialize = function(...){
       super$initialize(...)
-      self$set_properties("sigma_zy", self$sigma_zy)
-      self$set_properties("sigma", self$sigma)
-      self$set_properties("irrelpred", self$irrelpred)
-      self$set_properties("rotation_x", self$rotation_x)
-      self$set_properties("beta_z", self$beta_z)
-      self$set_properties("beta", self$beta)
-      self$set_properties("Rsq", self$Rsq)
-      self$set_properties("minerror", self$minerror)
-      
-      data <- self$get_data
-      private$..data[["x"]] <- data$x
-      private$..data[["y"]] <- data$y
-    },
-    data = function() {
-      data.frame(x = I(private$..data[["x"]]),
-                 y = I(private$..data[["y"]]))
+      ## Adding Properties to Simrel Object
+      self$set_properties("sigma_y", expression({1}))
+      self$set_properties("sigma_zy", expression({
+        relpos <- self$get_parameters("relpos")
+        R2 <- self$get_parameters("R2")
+        p <- self$get_parameters("p")
+        lambda <- self$get_properties("eigen_x")
+        eta <- self$get_properties("eigen_w")
+        private$..get_cov(pos = relpos, Rsq = R2, p = p, lambda = lambda, eta = eta)
+      }))
+      self$set_properties("sigma", expression({
+        sigma_zy <- self$get_properties("sigma_zy")
+        sigma_y <- self$get_properties("sigma_y")
+        sigma_z <- self$get_properties("sigma_z")
+        out <- rbind(c(sigma_y, t(sigma_zy)), cbind(sigma_zy,  sigma_z))
+        unname(out)
+      }))
+      self$set_properties("rotation_x", expression({
+        relpred <- self$get_properties("relpred")
+        p <- self$get_parameters("p")
+        irrelpred <- setdiff(1:p, unlist(relpred))
+        out <- diag(p)
+        out[irrelpred, irrelpred] <- private$..get_rotate(irrelpred)
+        out[relpred, relpred] <- private$..get_rotate(relpred)
+        return(out)
+      }))
+      self$set_properties("beta_z", expression({
+        sigma_zinv <- self$get_properties("sigma_zinv")
+        sigma_zy <- self$get_properties("sigma_zy")
+        return(sigma_zinv %*% sigma_zy)
+      }))
+      self$set_properties("beta", expression({
+        rotation_x <- self$get_properties("rotation_x")
+        beta_z <- self$get_properties("beta_z")
+        return(rotation_x %*% beta_z)
+      }))
+      self$set_properties("Rsq_y", expression({
+        beta_z <- self$get_properties("beta_z")
+        sigma_zy <- self$get_properties("sigma_zy")
+        c(t(beta_z) %*% sigma_zy)
+      }))
+      self$set_properties("minerror", expression({
+        sigma_y <- self$get_properties("sigma_y")
+        Rsq <- self$get_properties("Rsq_y")
+        c(sigma_y - Rsq)
+      }))
     }
   )
 )
 
+## ---- Class: MultiSimrel ----
 #' @title Multi-Response Simulation of Linear Model Data
 #' @description Simulates multivariate linear model data where users can specify few parameters for simulating data with wide range of properties.
 #' @import R6
@@ -255,83 +261,134 @@ UniSimrel <- R6::R6Class(
 #' @return simrel object (A list)
 #' @rdname simrel
 #' @export
-
 MultiSimrel <- R6::R6Class(
   "MultiSimrel",
   inherit = Simrel,
-  private = list(),
-  active = list(
-    sigma_zw = function() {
-      relpos <- self$get_parameters("relpos")
-      R2 <- self$get_parameters("R2")
-      p <- self$get_parameters("p")
-      eta <- self$get_parameters("eta")
-      lambda <- self$get_properties("lambda")
-      mapply(private$..get_cov, pos = relpos, Rsq = R2, eta = eta, 
-             MoreArgs = list(p = p, lambda = lambda))
-    },
-    sigma = function() {
-      sigma_zw <- self$get_properties("sigma_zw")
-      sigma_w <- self$get_properties("sigma_w")
-      sigma_z <- self$get_properties("sigma_z")
-      rbind(c(sigma_w, t(sigma_zw)), cbind(sigma_zw,  sigma_z))
-    },
-    irrelpred = function() {
-      relpred <- self$get_properties("relpred")
-      p <- self$get_parameters("p")
-      irrelpred <- setdiff(1:p, relpred)
-    },
-    rotation_x = function() {
-      irrelpred <- self$get_properties("irrelpred")
-      relpred <- self$get_properties("relpred")
-      p <- self$get_parameters("p")
-      out <- diag(p)
-      out[irrelpred, irrelpred] <- private$..get_rotate(irrelpred)
-      out[relpred, relpred] <- private$..get_rotate(relpred)
-      return(out)
-    },
-    beta_z = function() {
-      sigma_zinv <- self$get_properties("sigma_zinv")
-      sigma_zy <- self$get_properties("sigma_zy")
-      return(sigma_zinv %*% sigma_zy)
-    },
-    beta = function() {
-      rotation_x <- self$get_properties("rotation_x")
-      beta_z <- self$get_properties("beta_z")
-      return(rotation_x %*% beta_z)
-    },
-    Rsq = function() {
-      beta_z <- self$get_properties("beta_z")
-      sigma_zy <- self$get_properties("sigma_zy")
-      t(beta_z) %*% sigma_zy
-    },
-    minerror = function() {
-      sigma_y <- self$get_properties("sigma_y")
-      Rsq <- self$get_properties("Rsq")
-      sigma_y - Rsq
-    }
-  ),
   public = list(
     initialize = function(...){
-      super$initialize(...)
-      self$set_properties("sigma_zw", self$sigma_zw)
-      browser()
-      self$set_properties("sigma", self$sigma)
-      self$set_properties("irrelpred", self$irrelpred)
-      self$set_properties("rotation_x", self$rotation_x)
-      self$set_properties("beta_z", self$beta_z)
-      self$set_properties("beta", self$beta)
-      self$set_properties("Rsq", self$Rsq)
-      self$set_properties("minerror", self$minerror)
+      if(missing(...)) {
+        super$initialize(
+          q = c(6, 7),
+          m = 3,
+          relpos = list(c(1, 2), c(3, 4, 5)),
+          ypos = list(1, c(2, 3)),
+          R2 = c(0.7, 0.9),
+          type = "multivariate"
+        )
+      } else {
+        super$initialize(...)
+      }
       
-      data <- self$get_data
-      private$..data[["x"]] <- data$x
-      private$..data[["y"]] <- data$y
-    },
-    data = function() {
-      data.frame(x = I(private$..data[["x"]]),
-                 y = I(private$..data[["y"]]))
+      ## Adding Properties to Simrel Object
+      self$set_properties("sigma_w", expression({
+        eigen_w <- self$get_properties("eigen_w")
+        m <- self$get_parameters("m")
+        diag(c(eigen_w, rep(1, m - length(eigen_w))))
+      }))
+      self$set_properties("sigma_zw", expression({
+        relpos <- self$get_parameters("relpos")
+        m <- self$get_parameters("m")
+        R2 <- self$get_parameters("R2")
+        p <- self$get_parameters("p")
+        lambda <- self$get_properties("eigen_x")
+        eta <- self$get_properties("eigen_w")
+        out <- mapply(private$..get_cov, pos = relpos, Rsq = R2, eta = eta, 
+               MoreArgs = list(p = p, lambda = lambda))
+        cbind(out, rep(0, m - length(eta)))
+      }))
+      self$set_properties("sigma", expression({
+        sigma_zw <- self$get_properties("sigma_zw")
+        sigma_w <- self$get_properties("sigma_w")
+        sigma_z <- self$get_properties("sigma_z")
+        out <- cbind(rbind(sigma_w, sigma_zw), rbind(t(sigma_zw), sigma_z))
+        unname(out)
+      }))
+      self$set_properties("rotation_x", expression({
+        relpred <- self$get_properties("relpred")
+        p <- self$get_parameters("p")
+        irrelpred <- setdiff(1:p, unlist(relpred))
+        out <- diag(p)
+        out[irrelpred, irrelpred] <- private$..get_rotate(irrelpred)
+        for (pos in relpred) {
+          rotMat         <- private$..get_rotate(pos)
+          out[pos, pos] <- rotMat
+        }
+        return(out)
+      }))
+      self$set_properties("rotation_y", expression({
+        ypos <- self$get_parameters("ypos")
+        m <- self$get_parameters("m")
+        out <- diag(m)
+        for (pos in ypos) {
+          rotMat         <- private$..get_rotate(pos)
+          out[pos, pos]  <- rotMat
+        }
+        return(out)
+      }))
+      self$set_properties("sigma_y", expression({
+        rotation_y <- self$get_properties("rotation_y")
+        sigma_w <- self$get_properties("sigma_w")
+        t(rotation_y) %*% sigma_w %*% rotation_y
+      }))
+      self$set_properties("sigma_zy", expression({
+        rotation_y <- self$get_properties("rotation_y")
+        sigma_zw <- self$get_properties("sigma_zw")
+        rotation_y %*% t(sigma_zw)
+      }))
+      self$set_properties("sigma_xy", expression({
+        rotation_x <- self$get_properties("rotation_x")
+        rotation_y <- self$get_properties("rotation_y")
+        sigma_zw <- self$get_properties("sigma_zw")
+        rotation_y %*% t(sigma_zw) %*% t(rotation_x)
+      }))
+      self$set_properties("beta_z", expression({
+        sigma_zinv <- self$get_properties("sigma_zinv")
+        sigma_zw <- self$get_properties("sigma_zw")
+        return(sigma_zinv %*% sigma_zw)
+      }))
+      self$set_properties("beta", expression({
+        rotation_x <- self$get_properties("rotation_x")
+        rotation_y <- self$get_properties("rotation_y")
+        beta_z <- self$get_properties("beta_z")
+        return(rotation_x %*% beta_z %*% t(rotation_y))
+      }))
+      self$set_properties("Rsq_w", expression({
+        beta_z <- self$get_properties("beta_z")
+        sigma_zw <- self$get_properties("sigma_zw")
+        sigma_w <- self$get_properties("sigma_w")
+        unname(t(beta_z) %*% sigma_zw %*% solve(sigma_w))
+      }))
+      self$set_properties("Rsq_y", expression({
+        rotation_y <- self$get_properties("rotation_y")
+        Rsq_w <- self$get_properties("Rsq_w")
+        t(rotation_y) %*% Rsq_w %*% rotation_y
+      }))
+      self$set_properties("minerror", expression({
+        sigma_y <- self$get_properties("sigma_y")
+        Rsq <- self$get_properties("Rsq_y")
+        unname(sigma_y - Rsq)
+      }))
     }
   )
 )
 
+
+
+## ---- Wrapper Function ----
+#' @title Multi-Response Simulation of Linear Model Data
+#' @description Simulates multivariate linear model data where users can specify few parameters for simulating data with wide range of properties.
+#' @import R6
+#' @param  type Number of training samples
+#' @param ... All required arguments for different types of simulation
+#' @export
+simulater <- function(type, ...){
+  if (type == "univariate") {
+    sobj <- UniSimrel$new(...)
+    return(sobj)
+  }
+  if (type == "multivariate") {
+    sobj <- MultiSimrel$new(...)
+    return(sobj)
+  }
+  return(paste(type, "is unknown"))
+}

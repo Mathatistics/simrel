@@ -2,9 +2,13 @@ Package: simrel
 Title: Simulation of Linear Model Data
 Version: 0.0.0.9000
 Authors@R: person("Raju", "Rimal", email = "raju.rimal@nmbu.no", role = c("aut", "cre"))
-Description: Simulation of linear model data with univariate, bivariate and multivariate response
+Description: 
+  Simulation of linear model data with univariate, bivariate and multivariate response.
+  It allows users to specify few parameters to obtain wide range of properties in their
+  simulated data.
 Depends: R (>= 3.4.1)
 License: GPL (>= 2)
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 6.0.1
+Imports: R6

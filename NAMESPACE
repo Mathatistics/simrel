@@ -3,4 +3,5 @@
 export(MultiSimrel)
 export(Simrel)
 export(UniSimrel)
+export(simulater)
 import(R6)
