@@ -99,22 +99,19 @@ Simrel <- R6::R6Class(
     list_properties = function(){
       properties <- private$..properties
       properties <- properties[!sapply(properties, is.null)]
-      str(properties)
-      cat("\nProperties of Simulated Data:\n")
-      names(properties)
+      return(properties)
     },
     list_parameters = function(){
       parameters <- private$..parameters
       parameters <- parameters[!sapply(parameters, is.null)]
-      str(parameters)
-      cat("\nInput Parameters for Simulation:\n")
-      names(parameters)
+      return(parameters)
     }
   ),
   public = list(
     initialize = function(...) {
       self$set_parameters(...)
-      type <- self$get_parameters("type")
+    },
+    base_properties = function() {
       ## Adding Properties to Simrel Object
       self$set_properties("relpred", expression({
         p      <- self$get_parameters("p")
@@ -142,14 +139,78 @@ Simrel <- R6::R6Class(
         diag(1 / self$get_properties("eigen_x"))
       }))
     },
-    get_parameters = function(key) private$..parameters[[key]],
+    get_validated = function() {
+      errors <- list()
+      warnings <- list()
+      params <- self$list_parameters
+      list2env(params, envir = environment())
+      switch(
+        type, 
+        univariate = {
+          req_params <- c("n", "p", "q", "relpos", "R2", "gamma", "type")
+          ## ensure minimum required parameters
+          if (!all(req_params %in% names(params))) {
+            errors[[1]] <- "Not Enough Parameters"
+          }
+          
+          ## ensure length params agree
+          if (q <= length(relpos)) {
+            errors[[2]] <- "Number of position of relevant components should be less than the number of relevant predictors."
+          }
+          if (q > p) {
+            errors[[3]] <- "Relevant number of predictor should be less than or equals to total number of predictors."
+          }
+          if (!all(c(length(q), length(gamma), length(R2)) == 1)) {
+            errors[[6]] <- "Length of q, gamma and R2 should be equal to 1."
+          }
+          if (!all(relpos %in% 1:p)) {
+            errors[[7]] <- paste("Position of relevant component must be between 1 and ", p)
+          }
+          
+          ## Ensure range of parameters
+          if (gamma < 0) {
+            errors[[4]] <- "Gamma must be greater than zero."
+          }
+          if (!all(R2 > 0, R2 < 1)) {
+            errors[[5]] <- "Coefficient of determination (R2) should lie between 0 and 1."
+          }
+          
+          ## Ensure class of parameters
+          if (!is.atomic(relpos)) {
+            errors[[6]] <- "Relpos for uniresponse simulation should be a vector."
+          }
+        },
+        
+        multivariate = {
+          browser()
+          ## Ensure minimum required parameters
+          req_params <- c("n", "p", "q", "relpos", "R2", 
+                          "gamma", "type", "ypos", "m")
+          if (!all(req_params %in% names(params))) {
+            errors[[1]] <- "Not Enough Parameters"
+          }
+          
+          ## Ensure Lengths of parameters
+          ## START HERE -----------------
+        }
+      )
+      out <- list(errors = errors, warnings = warnings)
+      return(out)
+    },
+    get_parameters = function(key) {
+      if (length(key) == 1) return(private$..parameters[[key]])
+      else return(private$..parameters[key])
+    },
     set_parameters = function(...) {
       params <- list(...)
       for (key in names(params)) {
         private$..parameters[[key]] <- params[[key]]
       }
     },
-    get_properties = function(key) private$..properties[[key]],
+    get_properties = function(key) {
+      if (length(key) == 1) return(private$..properties[[key]])
+      else return(private$..properties[key])
+    },
     set_properties = function(key, expression) {
       private$..properties[[key]] <- eval(expression)
     },
@@ -192,7 +253,19 @@ UniSimrel <- R6::R6Class(
   public = list(
     initialize = function(...){
       super$initialize(...)
+      super$set_parameters(type = "univariate")
+      
+      ## Validate the parameters
+      is_valid <- self$get_validated()
+      is_valid <- lapply(is_valid, function(x) x[!sapply(x, is.null)])
+      if (length(is_valid$errors)) stop(unlist(is_valid$errors))
+      if (length(is_valid$warnings)) warning(unlist(is_valid$warnings))
+      
       ## Adding Properties to Simrel Object
+      super$base_properties()
+      self$add_properties()
+    },
+    add_properties = function(){
       self$set_properties("sigma_y", expression({1}))
       self$set_properties("sigma_zy", expression({
         relpos <- self$get_parameters("relpos")
@@ -277,8 +350,20 @@ MultiSimrel <- R6::R6Class(
         )
       } else {
         super$initialize(...)
+        super$set_parameters(type = "multivariate")
       }
       
+      ## Validate the parameters
+      is_valid <- self$get_validated()
+      is_valid <- lapply(is_valid, function(x) x[!sapply(x, is.null)])
+      if (length(is_valid$errors)) stop(unlist(is_valid$errors))
+      if (length(is_valid$warnings)) warning(unlist(is_valid$warnings))
+      
+      ## Adding Properties to Simrel Object
+      super$base_properties()
+      self$add_properties()
+    },
+    add_properties = function() {
       ## Adding Properties to Simrel Object
       self$set_properties("sigma_w", expression({
         eigen_w <- self$get_properties("eigen_w")
@@ -293,7 +378,7 @@ MultiSimrel <- R6::R6Class(
         lambda <- self$get_properties("eigen_x")
         eta <- self$get_properties("eigen_w")
         out <- mapply(private$..get_cov, pos = relpos, Rsq = R2, eta = eta, 
-               MoreArgs = list(p = p, lambda = lambda))
+                      MoreArgs = list(p = p, lambda = lambda))
         cbind(out, rep(0, m - length(eta)))
       }))
       self$set_properties("sigma", expression({
