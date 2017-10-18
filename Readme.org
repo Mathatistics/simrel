@@ -4,7 +4,7 @@ This package allows you to simulation multivariate linear model with single and 
 
 * To Do
 
-- [x] Add validation for input parameters
+- [ ] Add validation for input parameters
 - [ ] Include Bivariate simulation where the correlation between two response are also considered
 - [ ] Some plotting function
 - [ ] Provide easy shiny interface for simulation
