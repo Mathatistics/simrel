@@ -86,7 +86,7 @@ Simrel <- R6::R6Class(
       if(!is.list(relpos)) out <- unlist(out)
       return(out)
     },
-    ..get_data = function(n, p, sigma, rotation_x, m = 1, 
+    ..get_data = function(n, p, sigma, rotation_x, m = 1,
                           rotation_y = NULL, muX = NULL, muY = NULL){
       sigma_rot <- chol(sigma)
       train_cal <- matrix(rnorm(n * (p + m), 0, 1), nrow = n) %*% sigma_rot
@@ -94,10 +94,10 @@ Simrel <- R6::R6Class(
       X <- Z %*% t(rotation_x)
       W <- train_cal[, 1:m, drop = F]
       Y <- if (all(!is.null(m), m > 1)) W %*% t(rotation_y) else W
-      
+
       if (!is.null(muX)) X <- sweep(X, 2, muX, "+")
       if (!is.null(muY)) Y <- sweep(Y, 2, muY, "+")
-      
+
       list(y = unname(Y), x = X)
     }
   ),
@@ -158,15 +158,15 @@ Simrel <- R6::R6Class(
           if (!all(req_params %in% names(params))) {
             stop("Not Enough Parameters to continue")
           }
-          
+
           ## --- Check muX and muY
           if (exists("muX")) {
-            if (length(muX) != p) errors[[1]] <- "Length of muX is not equals to number of predictors (p)" 
+            if (length(muX) != p) errors[[1]] <- "Length of muX is not equals to number of predictors (p)"
           }
           if (exists("muY")) {
-            if (length(muY) != m) errors[[1]] <- "Length of muY is not equals to number of responses (m)" 
+            if (length(muY) != m) errors[[1]] <- "Length of muY is not equals to number of responses (m)"
           }
-          
+
           ## --- ensure length params agree
           if (q <= length(relpos)) {
             errors[[2]] <- "Number of position of relevant components should be less than the number of relevant predictors."
@@ -199,24 +199,24 @@ Simrel <- R6::R6Class(
           if (any(!req_params %in% names(params))) {
             stop("Not Enough Parameters to continue")
           }
-          
+
           ## --- Check muX and muY
           if (exists("muX")) {
-            if (length(muX) != p) errors[[1]] <- "Length of muX is not equals to number of predictors (p)" 
+            if (length(muX) != p) errors[[1]] <- "Length of muX is not equals to number of predictors (p)"
           }
           if (exists("muY")) {
-            if (length(muY) != m) errors[[1]] <- "Length of muY is not equals to number of responses (m)" 
+            if (length(muY) != m) errors[[1]] <- "Length of muY is not equals to number of responses (m)"
           }
-          
+
           ## --- Ensure class of parameters
           if (!is.list(relpos) | !is.list(ypos)) {
             stop("relpos and ypos must be a list")
           }
-          
+
           if (!all(c(length(q), length(relpos), length(R2)) == length(q))) {
             stop(paste("Length of q, relpos and R2 should be of same length"))
           }
-          
+
           ## Ensure Lengths of parameters
           if (any(q < sapply(relpos, length))) {
             errors[[2]] <- "Number of position of relevant components should be less than the number of relevant predictors for each response components."
@@ -249,7 +249,7 @@ Simrel <- R6::R6Class(
           if (any(sapply(R2, function(x) !all(x > 0, x < 1)))) {
             errors[[10]] <- "Coefficients of determination (R2) should lie between 0 and 1."
           }
-          
+
         }
       )
       out <- list(errors = errors, warnings = warnings)
@@ -282,7 +282,7 @@ Simrel <- R6::R6Class(
       rotation_y <- self$get_properties("rotation_y")
       muX <- self$get_parameters("muX")
       muY <- self$get_parameters("muY")
-      
+
       train <- private$..get_data(n, p, sigma, rotation_x, m, rotation_y, muX, muY)
       out <- data.frame(y = I(train$y), x = I(train$x))
       if (type %in% c("test", "both")) {
@@ -298,7 +298,7 @@ Simrel <- R6::R6Class(
         )
         return(out)
       }
-      
+
       return(out)
     }
   )
@@ -339,8 +339,7 @@ UniSimrel <- R6::R6Class(
       if (length(is_valid$warnings)) warning(unlist(is_valid$warnings))
 
       ## Adding Properties to Simrel Object
-      super$base_properties()
-      self$add_properties()
+      self$compute_properties()
     },
     add_properties = function(){
       self$set_properties("sigma_y", expression({1}))
@@ -397,12 +396,17 @@ UniSimrel <- R6::R6Class(
         Rsq <- self$get_properties("Rsq_y")
         c(sigma_y - Rsq)
       }))
+    },
+    compute_properties = function() {
+      super$base_properties()
+      self$add_properties()
     }
   )
 )
 
-## ---- Class: MultiSimrel ----
-#' @title Multi-Response Simulation of Linear Model Data
+
+## ---- Class: BiSimrel ----
+#' @title Bi-Response Simulation of Linear Model Data
 #' @description Simulates multivariate linear model data where users can specify few parameters for simulating data with wide range of properties.
 #' @import R6
 #' @param  n Number of training samples
@@ -420,19 +424,21 @@ UniSimrel <- R6::R6Class(
 #' @return simrel object (A list)
 #' @rdname simrel
 #' @export
-MultiSimrel <- R6::R6Class(
-  "MultiSimrel",
+BiSimrel <- R6::R6Class(
+  "BiSimrel",
   inherit = Simrel,
   public = list(
     initialize = function(...){
       params <- list(...)
       default_params <- list(
-        q = c(6, 7),
-        m = 3,
-        relpos = list(c(1, 2), c(3, 4, 5)),
+        q = c(6, 7, 3),
+        m = 2,
+        relpos = list(c(1, 2), c(2, 3, 5)),
         ypos = list(1, c(2, 3)),
         R2 = c(0.7, 0.9),
-        type = "multivariate"
+        rho = c(0.7, 0.8),
+        eta = 0,
+        type = "bivariate"
       )
       default_params[names(params)] <- params
       do.call(super$initialize, default_params)
@@ -444,8 +450,7 @@ MultiSimrel <- R6::R6Class(
       if (length(is_valid$warnings)) warning(unlist(is_valid$warnings))
 
       ## Adding Properties to Simrel Object
-      super$base_properties()
-      self$add_properties()
+      self$compute_properties()
     },
     add_properties = function() {
       ## Adding Properties to Simrel Object
@@ -546,6 +551,164 @@ MultiSimrel <- R6::R6Class(
         Rsq <- self$get_properties("Rsq_y")
         unname(sigma_y - Rsq)
       }))
+    },
+    compute_properties = function() {
+      super$base_properties()
+      self$add_properties()
+    }
+  )
+)
+
+
+## ---- Class: MultiSimrel ----
+#' @title Multi-Response Simulation of Linear Model Data
+#' @description Simulates multivariate linear model data where users can specify few parameters for simulating data with wide range of properties.
+#' @import R6
+#' @param  n Number of training samples
+#' @param p Number of predictor variables
+#' @param q Number of relevant predictor variables
+#' @param relpos Position of relevant predictor components
+#' @param ypos Position of response components while rotation (see details)
+#' @param gamma Decay factor of eigenvalues of predictor variables
+#' @param R2 Coefficient of determination
+#' @param ntest (Optional) Number of test samples
+#' @param muX (Optional) Mean vector of predictor variables
+#' @param muY (Optional) Mean vector of response variables
+#' @param sim.obj (Optional) Previously fitted simulation object, the parameters will be taken from the object
+#' @param lambda.min (Optional) Minimum value that eigenvalues can be
+#' @return simrel object (A list)
+#' @rdname simrel
+#' @export
+MultiSimrel <- R6::R6Class(
+  "MultiSimrel",
+  inherit = Simrel,
+  public = list(
+    initialize = function(...){
+      params <- list(...)
+      default_params <- list(
+        q = c(6, 7),
+        m = 3,
+        relpos = list(c(1, 2), c(3, 4, 5)),
+        ypos = list(1, c(2, 3)),
+        R2 = c(0.7, 0.9),
+        eta = 0,
+        type = "multivariate"
+      )
+      default_params[names(params)] <- params
+      do.call(super$initialize, default_params)
+
+      ## Validate the parameters
+      is_valid <- self$get_validated()
+      is_valid <- lapply(is_valid, function(x) x[!sapply(x, is.null)])
+      if (length(is_valid$errors)) stop(unlist(is_valid$errors))
+      if (length(is_valid$warnings)) warning(unlist(is_valid$warnings))
+
+      ## Adding Properties to Simrel Object
+      self$compute_properties()
+    },
+    add_properties = function() {
+      ## Adding Properties to Simrel Object
+      self$set_properties("sigma_w", expression({
+        eigen_w <- self$get_properties("eigen_w")
+        m <- self$get_parameters("m")
+        diag(c(eigen_w, rep(1, m - length(eigen_w))))
+      }))
+      self$set_properties("sigma_zw", expression({
+        relpos <- self$get_parameters("relpos")
+        m <- self$get_parameters("m")
+        R2 <- self$get_parameters("R2")
+        p <- self$get_parameters("p")
+        lambda <- self$get_properties("eigen_x")
+        eta <- self$get_properties("eigen_w")
+        out <- mapply(private$..get_cov, pos = relpos, Rsq = R2, eta = eta,
+                      MoreArgs = list(p = p, lambda = lambda))
+        cbind(out, rep(0, m - length(eta)))
+      }))
+      self$set_properties("sigma", expression({
+        sigma_zw <- self$get_properties("sigma_zw")
+        sigma_w <- self$get_properties("sigma_w")
+        sigma_z <- self$get_properties("sigma_z")
+        out <- cbind(rbind(sigma_w, sigma_zw), rbind(t(sigma_zw), sigma_z))
+        unname(out)
+      }))
+      self$set_properties("rotation_x", expression({
+        relpred <- self$get_properties("relpred")
+        p <- self$get_parameters("p")
+        irrelpred <- setdiff(1:p, unlist(relpred))
+        out <- diag(p)
+        out[irrelpred, irrelpred] <- private$..get_rotate(irrelpred)
+        for (pos in relpred) {
+          rotMat         <- private$..get_rotate(pos)
+          out[pos, pos] <- rotMat
+        }
+        return(out)
+      }))
+      self$set_properties("rotation_y", expression({
+        ypos <- self$get_parameters("ypos")
+        m <- self$get_parameters("m")
+        out <- diag(m)
+        for (pos in ypos) {
+          rotMat         <- private$..get_rotate(pos)
+          out[pos, pos]  <- rotMat
+        }
+        return(out)
+      }))
+      self$set_properties("sigma_y", expression({
+        rotation_y <- self$get_properties("rotation_y")
+        sigma_w <- self$get_properties("sigma_w")
+        t(rotation_y) %*% sigma_w %*% rotation_y
+      }))
+      self$set_properties("sigma_zy", expression({
+        rotation_y <- self$get_properties("rotation_y")
+        sigma_zw <- self$get_properties("sigma_zw")
+        rotation_y %*% t(sigma_zw)
+      }))
+      self$set_properties("sigma_xy", expression({
+        rotation_x <- self$get_properties("rotation_x")
+        rotation_y <- self$get_properties("rotation_y")
+        sigma_zw <- self$get_properties("sigma_zw")
+        rotation_y %*% t(sigma_zw) %*% t(rotation_x)
+      }))
+      self$set_properties("beta_z", expression({
+        sigma_zinv <- self$get_properties("sigma_zinv")
+        sigma_zw <- self$get_properties("sigma_zw")
+        return(sigma_zinv %*% sigma_zw)
+      }))
+      self$set_properties("beta", expression({
+        rotation_x <- self$get_properties("rotation_x")
+        rotation_y <- self$get_properties("rotation_y")
+        beta_z <- self$get_properties("beta_z")
+        return(rotation_x %*% beta_z %*% t(rotation_y))
+      }))
+      self$set_properties("beta0", expression({
+        beta0 <- rep(0, self$get_parameters("m"))
+        muX <- self$get_parameters("muX")
+        muY <- self$get_parameters("muY")
+        if (!is.null(muX)) beta <- self$get_properties("beta")
+        if (!is.null(muY)) beta0 <- beta0 + muY
+        if (!is.null(muX)) beta0 <- beta0 - t(beta) %*% muX
+        return(c(beta0))
+      }))
+      self$set_properties("Rsq_w", expression({
+        beta_z <- self$get_properties("beta_z")
+        sigma_zw <- self$get_properties("sigma_zw")
+        sigma_w <- self$get_properties("sigma_w")
+        unname(t(beta_z) %*% sigma_zw %*% solve(sigma_w))
+      }))
+      self$set_properties("Rsq_y", expression({
+        rotation_y <- self$get_properties("rotation_y")
+        Rsq_w <- self$get_properties("Rsq_w")
+        t(rotation_y) %*% Rsq_w %*% rotation_y
+      }))
+      self$set_properties("minerror", expression({
+        sigma_y <- self$get_properties("sigma_y")
+        Rsq <- self$get_properties("Rsq_y")
+        unname(sigma_y - Rsq)
+      }))
+    },
+    compute_properties = function() {
+      super$base_properties()
+      self$add_properties()
     }
   )
 )
