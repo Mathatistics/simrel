@@ -1,0 +1,76 @@
+---
+title: "Simulating Linear Random Regression Model Data"
+author: "Raju Rimal"
+date: "`r Sys.Date()`"
+output: 
+  prettydoc::html_pretty:
+    theme: tactile
+    highlight: github
+    css: styles.css
+vignette: >
+  %\VignetteIndexEntry{Simulating Linear Random Regression Model Data}
+  %\VignetteEngine{knitr::rmarkdown}
+  \usepackage[utf8]{inputenc}
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, comment = NULL)
+library(simrel)
+```
+
+# Simulation of Linear Model Data
+
+This package is build on top of R6 class and has one main class and three child classes based on it. Each of these classes are responsible for simulating Univariate (one response), Bivariate (two correlated responses) and Multivariate (multiple responses with distinct relevant predictor space) linear model data. The package is based on ...
+
+## Single Response multiple linear regression data
+```{r}
+sobj <- UniSimrel$new()
+str(sobj$list_parameters)
+```
+
+**Properties of Simulated Data**
+```{r}
+str(sobj$list_properties)
+```
+
+**Simulate Data**
+```{r}
+dta <- sobj$get_data()
+str(dta)
+```
+
+## Double Response multiple linear regression data
+```{r}
+sobj <- BiSimrel$new()
+str(sobj$list_parameters)
+```
+
+**Properties of Simulated Data**
+```{r}
+str(sobj$list_properties)
+```
+
+**Simulate Data**
+```{r}
+dta <- sobj$get_data()
+str(dta)
+```
+
+## Multi Response multiple linear regression data
+```{r}
+sobj <- MultiSimrel$new()
+str(sobj$list_parameters)
+```
+
+**Properties of Simulated Data**
+```{r}
+str(sobj$list_properties)
+```
+
+**Simulate Data**
+```{r}
+dta <- sobj$get_data()
+str(dta)
+```
+
