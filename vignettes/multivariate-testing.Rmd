@@ -1,0 +1,159 @@
+---
+title: "Multivariate Simulation"
+author: Raju Rimal
+output: 
+  rmarkdown::html_document: 
+    theme: cosmo
+    runtime: shiny
+---
+
+```{r setup, include = FALSE}
+library(simrel)
+library(simulatr)
+library(reshape2)
+library(tidyverse)
+library(pls)
+library(shiny)
+knitr::opts_chunk$set(comment = NULL, echo = FALSE)
+```
+
+# Simulation Parameters {.tabset .tabset-pills}
+
+```{r bivariate-option}
+fluidRow(
+  column(4, numericInput("n", "Number of observation", 100, min = 10, width = "100%")),
+  column(4, numericInput("p", "Number of predictors", 10, min = 2, width = "100%")),
+  column(4, numericInput("m", "Number of responses", 3, min = 2, width = "100%")),
+  column(4, textInput("q", "Number of relevant predictors", value = "5, 4", width = "100%")),
+  column(4, textInput("relpos", "Position of Relevant components", value = "1, 2; 3, 4, 6", width = '100%')),
+  column(4, textInput("ypos", "Position of response components", value = "1; 2, 3", width = '100%')),
+  column(6, sliderInput("gamma", "Decay factor of eigenvector of predictors", 
+                        value = 0.5, min = 0, max = 3, width = '100%', step = 0.01)),
+  column(6, textInput("R2", "Coefficient of Determination", value = "0.7, 0.8", width = '100%'))
+)
+evl <- function(x) {
+  out <- lapply(strsplit(unlist(strsplit(x, ";")), ","), as.numeric)
+  if (length(out) == 1) out <- out[[1]]
+  return(out)
+}
+opts <- reactive({
+  list(
+    n = input$n,
+    p = input$p,
+    q = evl(input$q),
+    relpos = evl(input$relpos),
+    gamma = input$gamma,
+    R2 = evl(input$R2),
+    ypos = evl(input$ypos),
+    m = input$m
+  )
+})
+```
+
+## Simulation and Modelling {.tabset}
+### R6 Simrel
+
+```{r}
+r6obj <- reactive({
+  set.seed(777)
+  do.call(MultiSimrel$new, opts())
+})
+r6dta <- reactive({
+  r6obj()$get_data()
+})
+r6mdl <- reactive({
+  lm(y ~ x, data = r6dta())
+})
+column(8, renderPrint({
+  ls.str(r6obj()[["list_properties"]])
+}))
+column(4, renderPrint({
+  ls.str(r6obj()[["list_parameters"]])
+}))
+```
+
+### S3 Simrel
+
+```{r}
+s3obj <- reactive({
+  set.seed(777)
+  do.call(simrel_m, opts())
+})
+s3dta <- reactive({
+  data.frame(x = I(s3obj()[['X']]), y = I(s3obj()[['Y']]))
+})
+s3mdl <- reactive({
+  lm(y ~ x, data = s3dta())
+})
+renderPrint({
+  ls.str(s3obj())
+})
+```
+
+
+## Summary Statistics {.tabset}
+### R6 Simrel
+```{r}
+column(12, {
+  renderPrint({
+    summary(r6mdl())
+  })
+})
+```
+
+
+### S3 Simrel
+```{r}
+column(12, {
+  renderPrint({
+    summary(s3mdl())
+  })
+})
+```
+
+
+## Regression Coefficients {.tabset}
+### R6 Simrel
+```{r}
+renderPlot({
+  true <- r6obj()$get_properties("beta")
+  estimated <- r6mdl()$coef[-1, ] %>% unname()
+  true <- reshape2::melt(true, varnames = c("Predictor", "Response"), value.name = "True")
+  estimated <- reshape2::melt(as.matrix(estimated), 
+                              varnames = c("Predictor", "Response"), 
+                              value.name = "Estimated")
+  bta <- merge(estimated, true, by = c("Predictor", "Response")) %>% reshape2::melt(1:2)
+  int_breaks <- function(x, n = 5) pretty(x, n)[pretty(x, n) %% 1 == 0] 
+  ggplot(bta, aes(Predictor, value, color = variable)) +
+    geom_hline(yintercept = 0, col = "darkgrey", linetype = 2) +
+    geom_point() +
+    geom_line() +
+    labs(y = "Regression Coefficients", color = NULL) +
+    theme(legend.position = "top") +
+    facet_grid(Response ~ ., labeller = label_both) +
+    scale_x_continuous(breaks = int_breaks)
+}, res = 110, height = 600)
+```
+
+### S3 Simrel
+```{r}
+renderPlot({
+  true <- s3obj()$beta
+  estimated <- s3mdl()$coef[-1, ] %>% unname()
+  true <- reshape2::melt(true, varnames = c("Predictor", "Response"), value.name = "True")
+  estimated <- reshape2::melt(as.matrix(estimated), 
+                              varnames = c("Predictor", "Response"), 
+                              value.name = "Estimated")
+  bta <- merge(estimated, true, by = c("Predictor", "Response")) %>% reshape2::melt(1:2)
+  int_breaks <- function(x, n = 5) pretty(x, n)[pretty(x, n) %% 1 == 0] 
+  ggplot(bta, aes(Predictor, value, color = variable)) +
+    geom_hline(yintercept = 0, col = "darkgrey", linetype = 2) +
+    geom_point() +
+    geom_line() +
+    labs(y = "Regression Coefficients", color = NULL) +
+    theme(legend.position = "top") +
+    facet_grid(Response ~ ., labeller = label_both) +
+    scale_x_continuous(breaks = int_breaks)
+}, res = 110, height = 600)
+```
+

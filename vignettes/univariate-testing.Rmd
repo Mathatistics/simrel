@@ -1,0 +1,162 @@
+---
+title: "Univariate Simulation Testing"
+author: Raju Rimal
+output: 
+  rmarkdown::html_document: 
+    theme: cosmo
+    runtime: shiny
+---
+
+```{r setup, include = FALSE}
+library(simrel)
+library(simulatr)
+library(reshape2)
+library(tidyverse)
+library(pls)
+library(shiny)
+knitr::opts_chunk$set(comment = NULL, echo = FALSE)
+```
+
+# Simulation Parameters {.tabset .tabset-pills}
+
+```{r univariate-option}
+fluidRow(
+  column(4, numericInput("n", "Number of observation", 100, min = 10, width = "100%")),
+  column(4, numericInput("p", "Number of predictors", 10, min = 2, width = "100%")),
+  column(4, numericInput("q", "Number of relevant predictors", 4, min = 2, width = "100%")),
+  column(4, sliderInput("gamma", "Decay factor of eigenvector of predictors", 
+                        value = 0.5, min = 0, max = 3, width = '100%', step = 0.01)),
+  column(4, sliderInput("R2", "Coefficient of Determination", 
+                        value = 0.6, min = 0, max = 1, width = '100%', step = 0.01)),
+  column(4, textInput("relpos", "Position of Relevant components", value = "1, 2, 3", width = '100%'))
+)
+opts <- reactive({
+  list(
+    n = input$n,
+    p = input$p,
+    q = input$q,
+    relpos = as.numeric(strsplit(input$relpos, ", ")[[1]]),
+    gamma = input$gamma,
+    R2 = input$R2
+  )
+})
+```
+
+## Simulation and Modelling {.tabset}
+### R6 Simrel
+
+```{r}
+r6obj <- reactive({
+  set.seed(777)
+  do.call(UniSimrel$new, opts())
+})
+r6dta <- reactive({
+  r6obj()$get_data()
+})
+r6mdl <- reactive({
+  lm(y ~ x, data = r6dta())
+})
+column(8, renderPrint({
+  ls.str(r6obj()[["list_properties"]])
+}))
+column(4, renderPrint({
+  ls.str(r6obj()[["list_parameters"]])
+}))
+```
+
+### S3 Simrel
+
+```{r}
+s3obj <- reactive({
+  set.seed(777)
+  do.call(simulatr, opts())
+})
+s3dta <- reactive({
+  data.frame(x = I(s3obj()[['X']]), y = I(s3obj()[['Y']]))
+})
+s3mdl <- reactive({
+  lm(y ~ x, data = s3dta())
+})
+renderPrint({
+  ls.str(s3obj())
+})
+```
+
+
+
+## Summary Statistics {.tabset}
+### R6 Simrel
+```{r}
+column(8, {
+  renderPrint({
+    broom::tidy(r6mdl())
+  })
+})
+column(4, {
+  renderPrint({
+    t(broom::glance(r6mdl()))
+  })
+})
+```
+
+
+### S3 Simrel
+```{r}
+column(8, {
+  renderPrint({
+    broom::tidy(s3mdl())
+  })
+})
+column(4, {
+  renderPrint({
+    t(broom::glance(s3mdl()))
+  })
+})
+```
+
+
+
+## Regression Coefficients {.tabset}
+### R6 Simrel
+```{r}
+renderPlot({
+  true <- r6obj()$get_properties("beta")
+  estimated <- r6mdl()$coef[-1] %>% unname()
+  true <- reshape2::melt(true, varnames = c("Predictor", "Response"), value.name = "True")
+  estimated <- reshape2::melt(as.matrix(estimated), 
+                              varnames = c("Predictor", "Response"), 
+                              value.name = "Estimated")
+  bta <- merge(estimated, true, by = c("Predictor", "Response")) %>% reshape2::melt(1:2)
+  int_breaks <- function(x, n = 5) pretty(x, n)[pretty(x, n) %% 1 == 0] 
+  ggplot(bta, aes(Predictor, value, color = variable)) +
+    geom_hline(yintercept = 0, col = "darkgrey", linetype = 2) +
+    geom_point() +
+    geom_line() +
+    labs(y = "Regression Coefficients", color = NULL) +
+    theme(legend.position = "top") +
+    scale_x_continuous(breaks = int_breaks)
+}, res = 110)
+```
+
+
+### S3 Simrel
+```{r}
+renderPlot({
+  true <- s3obj()$beta
+  estimated <- s3mdl()$coef[-1] %>% unname()
+  true <- reshape2::melt(true, varnames = c("Predictor", "Response"), value.name = "True")
+  estimated <- reshape2::melt(as.matrix(estimated), 
+                              varnames = c("Predictor", "Response"), 
+                              value.name = "Estimated")
+  bta <- merge(estimated, true, by = c("Predictor", "Response")) %>% reshape2::melt(1:2)
+  int_breaks <- function(x, n = 5) pretty(x, n)[pretty(x, n) %% 1 == 0] 
+  ggplot(bta, aes(Predictor, value, color = variable)) +
+    geom_hline(yintercept = 0, col = "darkgrey", linetype = 2) +
+    geom_point() +
+    geom_line() +
+    labs(y = "Regression Coefficients", color = NULL) +
+    theme(legend.position = "top") +
+    scale_x_continuous(breaks = int_breaks)
+}, res = 110)
+```
+
