@@ -1027,20 +1027,34 @@ MultiSimrel <- R6::R6Class(
         return(c(beta0))
       }))
       self$set_properties("Rsq_w", expression({
-        beta_z <- self$get_properties("beta_z")
-        sigma_zw <- self$get_properties("sigma_zw")
         sigma_w <- self$get_properties("sigma_w")
-        unname(t(beta_z) %*% sigma_zw %*% solve(sigma_w))
+        var_w <- diag(1/sqrt(diag(sigma_w)))
+        sigma_zw <- self$get_properties("sigma_zw")
+        lambda <- self$get_properties("eigen_x")
+        sigma_zinv <- diag(1/lambda)
+        rsq_w <- var_w %*% 
+          (t(sigma_zw) %*% sigma_zinv %*% sigma_zw) %*% 
+          var_w
+        return(rsq_w)
       }))
       self$set_properties("Rsq_y", expression({
         rotation_y <- self$get_properties("rotation_y")
-        Rsq_w <- self$get_properties("Rsq_w")
-        t(rotation_y) %*% Rsq_w %*% rotation_y
+        sigma_zw <- self$get_properties("sigma_zw")
+        sigma_y <- self$get_properties("sigma_y")
+        var_y <- diag(1/sqrt(diag(sigma_y)))
+        lambda <- self$get_properties("eigen_x")
+        sigma_zinv <- diag(1/lambda)
+        rsq_y <- var_y %*% 
+          (rotation_y %*% t(sigma_zw) %*% sigma_zinv %*% sigma_zw %*% t(rotation_y)) %*% 
+          var_y
+        return(rsq_y)
       }))
       self$set_properties("minerror", expression({
-        sigma_y <- self$get_properties("sigma_y")
-        Rsq <- self$get_properties("Rsq_y")
-        unname(sigma_y - Rsq)
+        rotation_y <- self$get_properties("rotation_y")
+        sigma_w <- self$get_properties("sigma_w")
+        sigma_zw <- self$get_properties("sigma_zw")
+        sigma_zinv <- diag(1/self$get_properties("eigen_x"))
+        t(rotation_y) %*% (sigma_w - t(sigma_zw) %*% sigma_zinv %*% sigma_zw) %*% rotation_y
       }))
     },
     compute_properties = function() {
